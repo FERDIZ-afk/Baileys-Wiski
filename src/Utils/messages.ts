@@ -3,6 +3,7 @@ import axios from 'axios'
 import { randomBytes } from 'crypto'
 import { promises as fs } from 'fs'
 import { Logger } from 'pino'
+import { type Transform } from 'stream'
 import { proto } from '../../WAProto'
 import { MEDIA_KEYS, URL_REGEX, WA_DEFAULT_EPHEMERAL } from '../Defaults'
 import {
@@ -23,10 +24,10 @@ import {
 	WAProto,
 	WATextMessage,
 } from '../Types'
-import { isJidGroup, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
+import { isJidGroup, isJidNewsLetter, isJidStatusBroadcast, jidNormalizedUser } from '../WABinary'
 import { sha256 } from './crypto'
 import { generateMessageID, getKeyAuthor, unixTimestampSeconds } from './generics'
-import { downloadContentFromMessage, encryptedStream, generateThumbnail, getAudioDuration, getAudioWaveform, MediaDownloadOptions } from './messages-media'
+import { downloadContentFromMessage, encryptedStream, generateThumbnail, getAudioDuration, getAudioWaveform, MediaDownloadOptions, prepareStream } from './messages-media'
 
 type MediaUploadData = {
 	media: WAMediaUpload
@@ -164,8 +165,8 @@ export const prepareWAMessageMedia = async(
 		fileEncSha256,
 		fileSha256,
 		fileLength,
-		didSaveToTmpPath
-	} = await encryptedStream(
+		didSaveToTmpPath,
+	} = await (options.newsletter ? prepareStream : encryptedStream)(
 		uploadData.media,
 		options.mediaTypeOverride || mediaType,
 		{
@@ -175,8 +176,8 @@ export const prepareWAMessageMedia = async(
 		}
 	)
 	 // url safe Base64 encode the SHA256 hash of the body
-	const fileEncSha256B64 = fileEncSha256.toString('base64')
-	const [{ mediaUrl, directPath }] = await Promise.all([
+	const fileEncSha256B64 = (options.newsletter ? fileSha256 : fileEncSha256 ?? fileSha256).toString('base64')
+	const [{ mediaUrl, directPath, handle }] = await Promise.all([
 		(async() => {
 			const result = await options.upload(
 				encWriteStream,
@@ -228,7 +229,10 @@ export const prepareWAMessageMedia = async(
 	])
 		.finally(
 			async() => {
-				encWriteStream.destroy()
+				if (!Buffer.isBuffer(encWriteStream)) {
+					encWriteStream.destroy()
+				}
+				
 				// remove tmp files
 				if(didSaveToTmpPath && bodyPath) {
 					await fs.unlink(bodyPath)
@@ -240,13 +244,13 @@ export const prepareWAMessageMedia = async(
 	const obj = WAProto.Message.fromObject({
 		[`${mediaType}Message`]: MessageTypeProto[mediaType].fromObject(
 			{
-				url: mediaUrl,
+				url:  handle ? undefined : mediaUrl,
 				directPath,
-				mediaKey,
-				fileEncSha256,
+				mediaKey: mediaKey,
+				fileEncSha256: fileEncSha256,
 				fileSha256,
 				fileLength,
-				mediaKeyTimestamp: unixTimestampSeconds(),
+				mediaKeyTimestamp: handle ? undefined : unixTimestampSeconds(),
 				...uploadData,
 				media: undefined
 			}
@@ -646,7 +650,7 @@ export const generateWAMessage = async(
 		jid,
 		await generateWAMessageContent(
 			content,
-			options
+			{ newsletter: isJidNewsLetter(jid!), ...options }
 		),
 		options
 	)
@@ -868,31 +872,32 @@ const REUPLOAD_REQUIRED_STATUS = [410, 404]
 /**
  * Downloads the given message. Throws an error if it's not a media message
  */
-export const downloadMediaMessage = async(
+export const downloadMediaMessage = async<Type extends 'buffer' | 'stream'>(
 	message: WAMessage,
-	type: 'buffer' | 'stream',
+	type: Type,
 	options: MediaDownloadOptions,
 	ctx?: DownloadMediaMessageContext
 ) => {
-	try {
-		const result = await downloadMsg()
-		return result
-	} catch(error) {
-		if(ctx) {
-			if(axios.isAxiosError(error)) {
-				// check if the message requires a reupload
-				if(REUPLOAD_REQUIRED_STATUS.includes(error.response?.status!)) {
-					ctx.logger.info({ key: message.key }, 'sending reupload media request...')
-					// request reupload
-					message = await ctx.reuploadRequest(message)
-					const result = await downloadMsg()
-					return result
+  const result = await downloadMsg()
+		.catch(async(error) => {
+			if(ctx) {
+				if(axios.isAxiosError(error)) {
+					// check if the message requires a reupload
+					if(REUPLOAD_REQUIRED_STATUS.includes(error.response?.status!)) {
+						ctx.logger.info({ key: message.key }, 'sending reupload media request...')
+						// request reupload
+						message = await ctx.reuploadRequest(message)
+						const result = await downloadMsg()
+						return result
+					}
 				}
 			}
-		}
+			
+	  throw error
+		})
 
-		throw error
-	}
+	return result as Type extends 'buffer' ? Buffer : Transform
+
 
 	async function downloadMsg() {
 		const mContent = extractMessageContent(message.message)

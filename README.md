@@ -713,93 +713,65 @@ await sock.sendMessage(
     ```
 Of course, replace ``` xyz ``` with an actual ID. 
 
-## Groups
-- To create a group
+## Channel
+- To get info newsletter
     ``` ts
-    // title & participants
-    const group = await sock.groupCreate("My Fab Group", ["1234@s.whatsapp.net", "4564@s.whatsapp.net"])
-    console.log ("created group with id: " + group.gid)
-    sock.sendMessage(group.id, { text: 'hello there' }) // say hello to everyone on the group
+    const metadata = await sock.newsletterMetadata("invite", "xxxxx")
+    // or
+    const metadata = await sock.newsletterMetadata("jid", "abcd@newsletter")
+    console.log(metadata)
     ```
-- To add/remove people to a group or demote/promote people
+- To update the description of a newsletter
     ``` ts
-    // id & people to add to the group (will throw error if it fails)
-    const response = await sock.groupParticipantsUpdate(
-        "abcd-xyz@g.us", 
-        ["abcd@s.whatsapp.net", "efgh@s.whatsapp.net"],
-        "add" // replace this parameter with "remove", "demote" or "promote"
-    )
+    await sock.newsletterUpdateDescription("abcd@newsletter", "New Description")
     ```
-- To change the group's subject
+- To update the name of a newsletter
     ``` ts
-    await sock.groupUpdateSubject("abcd-xyz@g.us", "New Subject!")
-    ```
-- To change the group's description
+    await sock.newsletterUpdateName("abcd@newsletter", "New Name")
+    ```  
+- To update the profile picture of a newsletter.
     ``` ts
-    await sock.groupUpdateDescription("abcd-xyz@g.us", "New Description!")
+    await sock.newsletterUpdatePicture("abcd@newsletter", buffer)
     ```
-- To change group settings
+- To remove the profile picture of a newsletter
     ``` ts
-    // only allow admins to send messages
-    await sock.groupSettingUpdate("abcd-xyz@g.us", 'announcement')
-    // allow everyone to send messages
-    await sock.groupSettingUpdate("abcd-xyz@g.us", 'not_announcement')
-    // allow everyone to modify the group's settings -- like display picture etc.
-    await sock.groupSettingUpdate("abcd-xyz@g.us", 'unlocked')
-    // only allow admins to modify the group's settings
-    await sock.groupSettingUpdate("abcd-xyz@g.us", 'locked')
+    await sock.newsletterRemovePicture("abcd@newsletter")
     ```
-- To leave a group
+- To mute notifications for a newsletter.
     ``` ts
-    await sock.groupLeave("abcd-xyz@g.us") // (will throw error if it fails)
+    await sock.newsletterUnmute("abcd@newsletter")
     ```
-- To get the invite code for a group
+- To mute notifications for a newsletter.
     ``` ts
-    const code = await sock.groupInviteCode("abcd-xyz@g.us")
-    console.log("group code: " + code)
+    await sock.newsletterMute("abcd@newsletter")
     ```
-- To revoke the invite code in a group
-    ```ts
-    const code = await sock.groupRevokeInvite("abcd-xyz@g.us")
-    console.log("New group code: " + code)
-    ```
-- To query the metadata of a group
+- To create a newsletter
     ``` ts
-    const metadata = await sock.groupMetadata("abcd-xyz@g.us") 
-    console.log(metadata.id + ", title: " + metadata.subject + ", description: " + metadata.desc)
+    const metadata = await sock.newsletterCreate("Newsletter Name", "Newsletter Description")
+    console.log(metadata)
     ```
-- To join the group using the invitation code
+- To delete a newsletter.
     ``` ts
-    const response = await sock.groupAcceptInvite("xxx")
-    console.log("joined to: " + response)
+    await sock.newsletterDelete("abcd@newsletter")
     ```
-    Of course, replace ``` xxx ``` with invitation code.
-- To get group info by invite code
-    ```ts
-    const response = await sock.groupGetInviteInfo("xxx")
-    console.log("group information: " + response)
-    ```
-- To join the group using groupInviteMessage
+- To follow a newsletter
     ``` ts
-    const response = await sock.groupAcceptInviteV4("abcd@s.whatsapp.net", groupInviteMessage)
-    console.log("joined to: " + response)
+    await sock.newsletterFollow("abcd@newsletter")
     ```
-  Of course, replace ``` xxx ``` with invitation code.
+- To unfollow a newsletter
+    ``` ts
+    await sock.newsletterUnfollow("abcd@newsletter")
+    ```
+- To send reaction
+    ``` ts
+    // jid, id message & emoticon
+    // way to get the ID is to copy the message url from channel
+    // Example: [ https://whatsapp.com/channel/xxxxx/175 ]
+    // The last number of the URL is the ID
+    const id = "175"
+    await sock.newsletterReactMessage("abcd@newsletter", id, "🥳")
+    ```
 
-- To get list request join
-    ``` ts
-    const response = await sock.groupRequestParticipantsList("abcd-xyz@g.us")
-    console.log(response)
-    ```
-- To approve/reject request join
-    ``` ts
-    const response = await sock.groupRequestParticipantsUpdate(
-        "abcd-xyz@g.us", // id group,
-        ["abcd@s.whatsapp.net", "efgh@s.whatsapp.net"],
-        "approve" // replace this parameter with "reject" 
-    )
-    console.log(response)
-    ```
 
 ## Privacy
 - To get the privacy settings

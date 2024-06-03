@@ -4,6 +4,10 @@ export type GroupParticipant = (Contact & { isAdmin?: boolean, isSuperAdmin?: bo
 
 export type ParticipantAction = 'add' | 'remove' | 'promote' | 'demote'
 
+export type RequestJoinAction = 'created' | 'revoked' | 'rejected'
+
+export type RequestJoinMethod = 'invite_link' | 'linked_group_join' | 'non_admin_add' | undefined
+
 export interface GroupMetadata {
     id: string
     owner: string | undefined
@@ -32,6 +36,8 @@ export interface GroupMetadata {
     isCommunityAnnounce?: boolean
     /** number of group participants */
     size?: number
+    /** number of group participants */
+    imgurl?: string
     // Baileys modified array
     participants: GroupParticipant[]
     ephemeralDuration?: number
